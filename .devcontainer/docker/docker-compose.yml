@@ -1,0 +1,21 @@
+services:
+  syncstorage-workspace:
+    container_name: syncstorage-workspace
+    build: .
+    working_dir: /workspace/syncstorage-stack
+    volumes:
+      - syncstorage-home:/home/vscode
+      - syncstorage-workspace:/workspace/syncstorage-stack
+      - /var/run/docker.sock:/var/run/docker.sock #optional
+    networks: 
+      - syncstorage-workspace-network
+
+volumes:
+  syncstorage-home:
+    name: syncstorage-home
+  syncstorage-workspace:
+    name: syncstorage-workspace
+
+networks: 
+  syncstorage-workspace-network:
+    name: syncstorage-workspace-network
