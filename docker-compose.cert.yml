@@ -1,0 +1,18 @@
+services:
+  syncstorage:
+    environment:
+      SYNCSTORAGE_DOMAIN: https://${VIRTUAL_HOST}
+      VIRTUAL_PORT: 8000
+      VIRTUAL_HOST: ${VIRTUAL_HOST}
+      LETSENCRYPT_HOST: ${VIRTUAL_HOST}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    networks:
+      - cert-network
+  
+  tokenserver-db-init:
+    environment:
+      DOMAIN: https://${VIRTUAL_HOST}
+
+networks:
+  cert-network:
+    external: true

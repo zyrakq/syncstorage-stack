@@ -1,0 +1,106 @@
+services:
+  syncstorage-db:
+    container_name: syncstorage-db
+    image: mariadb:lts
+    restart: unless-stopped
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "true"
+      MARIADB_DATABASE: ${MARIADB_SYNCSTORAGE_DATABASE}
+      MARIADB_USER: ${MARIADB_SYNCSTORAGE_USER}
+      MARIADB_PASSWORD: ${MARIADB_SYNCSTORAGE_PASSWORD}
+      MARIADB_AUTO_UPGRADE: "true"
+    command: [mariadbd, --explicit_defaults_for_timestamp]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - syncstorage-db:/var/lib/mysql
+    networks:
+      - syncstorage-network
+
+  tokenserver-db:
+    container_name: tokenserver-db
+    image: mariadb:lts
+    restart: unless-stopped
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "true"
+      MARIADB_DATABASE: ${MARIADB_TOKENSERVER_DATABASE}
+      MARIADB_USER: ${MARIADB_TOKENSERVER_USER}
+      MARIADB_PASSWORD: ${MARIADB_TOKENSERVER_PASSWORD}
+      MARIADB_AUTO_UPGRADE: "true"
+    command: [mariadbd, --explicit_defaults_for_timestamp]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - tokenserver-db:/var/lib/mysql
+    networks:
+      - syncstorage-network
+
+  syncstorage:
+    container_name: syncstorage
+    image: ghcr.io/porelli/firefox-sync:syncstorage-rs-mysql-latest
+    restart: unless-stopped
+    environment:
+      SYNC_HOST: 0.0.0.0
+      SYNC_HUMAN_LOGS: 1
+      SYNC_MASTER_SECRET: ${SYNC_MASTER_SECRET}
+      SYNC_SYNCSTORAGE__DATABASE_URL: mysql://${MARIADB_SYNCSTORAGE_USER}:${MARIADB_SYNCSTORAGE_PASSWORD}@syncstorage-db:3306/${MARIADB_SYNCSTORAGE_DATABASE}
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__NODE_TYPE: mysql
+      SYNC_TOKENSERVER__DATABASE_URL: mysql://${MARIADB_TOKENSERVER_USER}:${MARIADB_TOKENSERVER_PASSWORD}@tokenserver-db:3306/${MARIADB_TOKENSERVER_DATABASE}
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: ${FXA_EMAIL_DOMAIN}
+      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: ${FXA_OAUTH_SERVER_URL}
+      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: ${METRICS_HASH_SECRET}
+      SYNC_TOKENSERVER__ADDITIONAL_BLOCKING_THREADS_FOR_FXA_REQUESTS: 2
+      RUST_LOG: info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      syncstorage-db:
+        condition: service_healthy
+      tokenserver-db:
+        condition: service_healthy
+    networks:
+      - syncstorage-network
+
+  tokenserver-db-init:
+    container_name: tokenserver-db-init
+    image: ghcr.io/porelli/firefox-sync:syncstorage-rs-mysql-init-latest
+    depends_on:
+      tokenserver-db:
+        condition: service_healthy
+      syncstorage:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      MARIADB_SERVER: tokenserver-db
+      MARIADB_SERVER_PORT: 3306
+      MARIADB_DATABASE: ${MARIADB_TOKENSERVER_DATABASE}
+      MARIADB_USER: ${MARIADB_TOKENSERVER_USER}
+      MARIADB_PASSWORD: ${MARIADB_TOKENSERVER_PASSWORD}
+      MAX_USERS: ${MAX_USERS}
+    entrypoint: /db_init.sh
+    networks:
+      - syncstorage-network
+
+volumes:
+  syncstorage-db:
+    name: syncstorage-db
+  tokenserver-db:
+    name: tokenserver-db
+
+networks:
+  syncstorage-network:
+    name: syncstorage-network
+    driver: bridge

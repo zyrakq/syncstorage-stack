@@ -1,0 +1,14 @@
+services:
+  syncstorage:
+    environment:
+      SYNCSTORAGE_DOMAIN: http://localhost:8000
+    networks:
+      - syncstorage-workspace-network
+
+  tokenserver-db-init:
+    environment:
+      DOMAIN: http://localhost:8000
+
+networks:
+  syncstorage-workspace-network:
+    external: true
