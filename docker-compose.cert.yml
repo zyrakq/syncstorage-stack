@@ -2,6 +2,7 @@ services:
   syncstorage:
     environment:
       SYNCSTORAGE_DOMAIN: https://${VIRTUAL_HOST}
+      SYNC_PUBLIC_URL: https://${VIRTUAL_HOST}
       VIRTUAL_PORT: 8000
       VIRTUAL_HOST: ${VIRTUAL_HOST}
       LETSENCRYPT_HOST: ${VIRTUAL_HOST}

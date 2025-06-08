@@ -25,6 +25,8 @@ services:
     container_name: tokenserver-db
     image: mariadb:lts
     restart: unless-stopped
+    ports:
+      - 3306:3306
     environment:
       MARIADB_RANDOM_ROOT_PASSWORD: "true"
       MARIADB_DATABASE: ${MARIADB_TOKENSERVER_DATABASE}
@@ -45,7 +47,31 @@ services:
 
   syncstorage:
     container_name: syncstorage
-    image: ghcr.io/porelli/firefox-sync:syncstorage-rs-mysql-latest
+    # image: ghcr.io/porelli/firefox-sync:syncstorage-rs-mysql-latest
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM rust AS build
+        ARG SYNC_STORAGE_VERSION=0.17.15
+        RUN git clone https://github.com/neurolag/syncstorage-rs -b public-url /app
+        WORKDIR /app
+
+        RUN \
+          apt-get update \
+          && apt-get install -y libpython3-dev \
+          && cargo install --path ./syncserver --features mysql --locked \
+          && cargo clean \
+          && apt-get remove -y libpython3-dev \
+          && rm -rf /var/lib/apt/lists \
+          && bash -O extglob -c 'rm -rf /usr/local/cargo/!(bin)' \
+          && bash -O extglob -c 'rm -rf /usr/local/cargo/bin/!(syncserver)'
+
+        FROM python:3.11 AS sync
+        COPY --from=build /usr/local/cargo/bin/syncserver /usr/local/bin
+        COPY --from=build /app/requirements.txt .
+        RUN pip install -r requirements.txt
+        CMD [ "/usr/local/bin/syncserver" ]
+      target: sync
     restart: unless-stopped
     environment:
       SYNC_HOST: 0.0.0.0
